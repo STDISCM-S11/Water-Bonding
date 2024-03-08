@@ -25,21 +25,24 @@ public class HydrogenClient {
 
             for (int i = 1; i <= N; i++) {
                 String requestId = "H" + i;
-                logAction(requestId, "request");
+                Log requestLog = logAction(i, "request");
                 out.writeUTF(requestId + ",request");
 
                 // In a real implementation, you'd wait for a response from the server here.
                 // This example simulates a successful bond confirmation.
-                logAction(requestId, "bonded");
+                Log confirmationLog = logAction(i, "bonded");
+
+                logs.add(requestLog);
+                logs.add(confirmationLog);
             }
         } catch (IOException e) {
             logger.log(Level.SEVERE, "Error communicating with the server", e);
         }
     }
 
-    private void logAction(int id, String action) {
+    private Log logAction(int id, String action) {
         LocalDateTime now = LocalDateTime.now();
-        Log logEntry = new Log(id, action, now, "O");
+        Log logEntry = new Log(id, action, now, "H");
         logger.info(logEntry.toString());
         return logEntry;
     }
