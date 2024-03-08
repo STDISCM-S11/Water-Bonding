@@ -1,3 +1,4 @@
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.io.PrintWriter;
@@ -17,12 +18,12 @@ public class OxygenClient {
 
     public void sendBondRequests(int M) {
         try (Socket socket = new Socket(serverAddress, serverPort);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+             DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
 
             for (int i = 1; i <= M; i++) {
                 String requestId = "O" + i;
                 logAction(requestId, "request");
-                out.println(requestId + ",request");
+                out.writeUTF(requestId + ",request");
 
                 logAction(requestId, "bonded");
             }
@@ -36,7 +37,7 @@ public class OxygenClient {
     }
 
     public static void main(String[] args) {
-        OxygenClient client = new OxygenClient("localhost", 12345);
+        OxygenClient client = new OxygenClient("127.0.0.1", 4000);
         client.sendBondRequests(10);
     }
 }
