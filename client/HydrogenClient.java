@@ -3,6 +3,8 @@ import java.io.IOException;
 import java.net.Socket;
 import java.io.PrintWriter;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -10,6 +12,7 @@ public class HydrogenClient {
     private static final Logger logger = Logger.getLogger(HydrogenClient.class.getName());
     private final String serverAddress;
     private final int serverPort;
+    private final List<Log> logs = new ArrayList<>();
 
     public HydrogenClient(String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
@@ -34,8 +37,15 @@ public class HydrogenClient {
         }
     }
 
-    private void logAction(String id, String action) {
-        logger.info("(" + id + ", " + action + ", " + LocalDateTime.now() + ")");
+    private void logAction(int id, String action) {
+        LocalDateTime now = LocalDateTime.now();
+        Log logEntry = new Log(id, action, now, "O");
+        logger.info(logEntry.toString());
+        return logEntry;
+    }
+
+    public List<Log> getLogs() {
+        return logs;
     }
 
     public static void main(String[] args) {
