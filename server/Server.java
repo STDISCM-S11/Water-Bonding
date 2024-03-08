@@ -1,5 +1,6 @@
 // A Java program for a Server
 import java.net.*;
+import java.time.LocalDateTime;
 import java.io.*;
 
 public class Server
@@ -35,12 +36,13 @@ public class Server
 				try
 				{
 					line = in.readUTF();
-					System.out.println(line);
+					System.out.println(line + " " + LocalDateTime.now());
 
 				}
 				catch(IOException i)
 				{
-					System.out.println(i);
+					// System.out.println(i);
+					// break;
 				}
 			}
 			System.out.println("Closing connection");
@@ -51,7 +53,7 @@ public class Server
 		}
 		catch(IOException i)
 		{
-			System.out.println(i);
+			// System.out.println(i);
 		}
 	}
 

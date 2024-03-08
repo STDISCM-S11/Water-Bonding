@@ -1,3 +1,4 @@
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.io.PrintWriter;
@@ -17,12 +18,12 @@ public class HydrogenClient {
 
     public void sendBondRequests(int N) {
         try (Socket socket = new Socket(serverAddress, serverPort);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+             DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
 
             for (int i = 1; i <= N; i++) {
                 String requestId = "H" + i;
                 logAction(requestId, "request");
-                out.println(requestId + ",request");
+                out.writeUTF(requestId + ",request");
 
                 // In a real implementation, you'd wait for a response from the server here.
                 // This example simulates a successful bond confirmation.
@@ -39,7 +40,7 @@ public class HydrogenClient {
 
     public static void main(String[] args) {
         // Example usage
-        HydrogenClient client = new HydrogenClient("localhost", 12345);
+        HydrogenClient client = new HydrogenClient("127.0.0.1", 4000);
         client.sendBondRequests(10); // Replace 10 with the desired N value
     }
 }
