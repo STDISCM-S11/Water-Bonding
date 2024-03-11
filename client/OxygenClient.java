@@ -1,3 +1,5 @@
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
 import java.io.PrintWriter;
@@ -20,19 +22,21 @@ public class OxygenClient {
 
     public void sendBondRequests(int M) {
         try (Socket socket = new Socket(serverAddress, serverPort);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+             DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+             DataInputStream in = new DataInputStream(socket.getInputStream())) {
 
+            // Send all requests at once
             for (int i = 1; i <= M; i++) {
                 String requestId = "O" + i;
                 Log requestLog = logAction(i, "request");
-                out.println(requestId + ",request");
-
-                // In a real implementation, you'd wait for a response from the server here.
-                // This example simulates a successful bond confirmation.
-                Log confirmationLog = logAction(i, "bonded");
-
-                // Store logs
+                out.writeUTF(requestId + ",request");
                 logs.add(requestLog);
+            }
+
+            // After sending all requests, wait for responses
+            for (int i = 1; i <= M; i++) {
+                String response = in.readUTF();
+                Log confirmationLog = logAction(i, "bonded, response: " + response);
                 logs.add(confirmationLog);
             }
         } catch (IOException e) {
@@ -53,7 +57,7 @@ public class OxygenClient {
 
     public static void main(String[] args) {
         // Example usage
-        OxygenClient client = new OxygenClient("localhost", 12345);
+        OxygenClient client = new OxygenClient("localhost", 4000);
         client.sendBondRequests(10); // Replace 10 with the desired M value
         
         // After sending requests, you can access the logs

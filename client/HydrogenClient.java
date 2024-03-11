@@ -1,3 +1,4 @@
+import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
@@ -21,18 +22,21 @@ public class HydrogenClient {
 
     public void sendBondRequests(int N) {
         try (Socket socket = new Socket(serverAddress, serverPort);
-             DataOutputStream out = new DataOutputStream(socket.getOutputStream())) {
+             DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+             DataInputStream in = new DataInputStream(socket.getInputStream())) {
 
-            for (int i = 1; i <= N; i++) {
+            // Send all requests at once
+            for (int i = 1; i <=  N; i++) {
                 String requestId = "H" + i;
                 Log requestLog = logAction(i, "request");
                 out.writeUTF(requestId + ",request");
-
-                // In a real implementation, you'd wait for a response from the server here.
-                // This example simulates a successful bond confirmation.
-                Log confirmationLog = logAction(i, "bonded");
-
                 logs.add(requestLog);
+            }
+
+            // After sending all requests, wait for responses
+            for (int i = 1; i <= N; i++) {
+                String response = in.readUTF();
+                Log confirmationLog = logAction(i, "bonded, response: " + response);
                 logs.add(confirmationLog);
             }
         } catch (IOException e) {
