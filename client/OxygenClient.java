@@ -36,7 +36,9 @@ public class OxygenClient {
             // After sending all requests, wait for responses
             for (int i = 1; i <= M; i++) {
                 String response = in.readUTF();
-                Log confirmationLog = logAction(i, "bonded, response: " + response);
+                String[] responseArr = response.split(",", 3);
+                responseArr[0] = responseArr[0].replace("O", "");
+                Log confirmationLog = logAction(/*i, "bonded, response: " + */Integer.valueOf(responseArr[0]),responseArr[1]);
                 logs.add(confirmationLog);
             }
         } catch (IOException e) {

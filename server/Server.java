@@ -1,15 +1,15 @@
 import java.net.*;
 import java.time.LocalDateTime;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
+import java.util.concurrent.*;
 import java.io.*;
 
 public class Server {
     private ServerSocket server = null;
     private ExecutorService pool = null;
-    private AtomicInteger hydrogenCount = new AtomicInteger(0);
-    private AtomicInteger oxygenCount = new AtomicInteger(0);
+    private Queue<String> hydrogenQueue = new ConcurrentLinkedQueue<>();
+    private Queue<String> oxygenQueue = new ConcurrentLinkedQueue<>();
+    private Map<String, DataOutputStream> clientOutputStreams = new ConcurrentHashMap<>();
 
     public Server(int port) {
         pool = Executors.newFixedThreadPool(4); // Adjust based on expected load
@@ -28,29 +28,23 @@ public class Server {
 
     private class ClientHandler implements Runnable {
         private Socket clientSocket;
-        private DataOutputStream out;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
-            try {
-                this.out = new DataOutputStream(clientSocket.getOutputStream());
-            } catch (IOException e) {
-                System.err.println("Error getting output stream: " + e.getMessage());
-            }
         }
 
         public void run() {
             try (DataInputStream in = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()))) {
                 String line;
                 while (!(line = in.readUTF()).equals("Over")) {
-                    processRequest(line);
+                    processRequest(line, new DataOutputStream(clientSocket.getOutputStream()));
                 }
             } catch (IOException e) {
                 System.err.println("ClientHandler exception: " + e.getMessage());
             }
         }
 
-        private void processRequest(String request) {
+        private void processRequest(String request, DataOutputStream out) throws IOException {
             String[] parts = request.split(",");
             String requestId = parts[0];
             String action = parts[1];
@@ -58,23 +52,30 @@ public class Server {
             logRequest(requestId, action);
 
             if ("request".equals(action)) {
+                clientOutputStreams.put(requestId, out); // Map requestId to outputStream
                 if (requestId.startsWith("H")) {
-                    hydrogenCount.incrementAndGet();
+                    hydrogenQueue.add(requestId);
                 } else if (requestId.startsWith("O")) {
-                    oxygenCount.incrementAndGet();
+                    oxygenQueue.add(requestId);
                 }
 
                 checkAndFormBond();
             }
         }
 
-        private synchronized void checkAndFormBond() {
-            if (hydrogenCount.get() >= 2 && oxygenCount.get() >= 1) {
-                hydrogenCount.addAndGet(-2);
-                oxygenCount.decrementAndGet();
-                String bondMessage = "Bond formed: 2H + O";
-                logBondingEvent(bondMessage);
-                sendBondConfirmation(bondMessage);
+        private synchronized void checkAndFormBond() throws IOException {
+            if (hydrogenQueue.size() >= 2 && oxygenQueue.size() >= 1) {
+                String hydrogen1 = hydrogenQueue.poll();
+                String hydrogen2 = hydrogenQueue.poll();
+                String oxygen = oxygenQueue.poll();
+                
+                logBondingEvent(hydrogen1, "bonded");
+                logBondingEvent(hydrogen2, "bonded");
+                logBondingEvent(oxygen, "bonded");
+
+                sendBondConfirmation(hydrogen1);
+                sendBondConfirmation(hydrogen2);
+                sendBondConfirmation(oxygen);
             }
         }
 
@@ -82,15 +83,14 @@ public class Server {
             System.out.println("(" + id + ", " + action + ", " + LocalDateTime.now() + ")");
         }
 
-        private void logBondingEvent(String message) {
-            System.out.println(message + " " + LocalDateTime.now());
+        private void logBondingEvent(String id, String action) {
+            System.out.println("(" + id + ", " + action + ", " + LocalDateTime.now() + ")");
         }
 
-        private void sendBondConfirmation(String message) {
-            try {
-                out.writeUTF(message);
-            } catch (IOException e) {
-                System.err.println("Error sending bond confirmation: " + e.getMessage());
+        private void sendBondConfirmation(String id) throws IOException {
+            DataOutputStream out = clientOutputStreams.get(id);
+            if (out != null) {
+                out.writeUTF(id + ",bonded");
             }
         }
     }
