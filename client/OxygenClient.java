@@ -2,7 +2,6 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +48,7 @@ public class OxygenClient {
     private Log logAction(int id, String action) {
         LocalDateTime now = LocalDateTime.now();
         Log logEntry = new Log(id, action, now, "O");
-        logger.info(logEntry.toString());
+        logger.info(logEntry.toStringElement());
         return logEntry;
     }
 
@@ -66,7 +65,7 @@ public class OxygenClient {
         List<Log> logs = client.getLogs();
         System.out.println("Logs:");
         for (Log log : logs) {
-            System.out.println(log);
+            System.out.println(log.toStringElement());
         }
     }
 }

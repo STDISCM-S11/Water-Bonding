@@ -48,7 +48,7 @@ public class HydrogenClient {
     private Log logAction(int id, String action) {
         LocalDateTime now = LocalDateTime.now();
         Log logEntry = new Log(id, action, now, "H");
-        logger.info(logEntry.toString());
+        logger.info(logEntry.toStringElement());
         return logEntry;
     }
 
@@ -60,5 +60,11 @@ public class HydrogenClient {
         // Example usage
         HydrogenClient client = new HydrogenClient("127.0.0.1", 4000);
         client.sendBondRequests(10); // Replace 10 with the desired N value
+
+        List<Log> logs = client.getLogs();
+        System.out.println("Logs:");
+        for (Log log : logs) {
+            System.out.println(log.toStringElement());
+        }
     }
 }

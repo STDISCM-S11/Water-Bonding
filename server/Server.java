@@ -10,6 +10,7 @@ public class Server {
     private Queue<String> hydrogenQueue = new ConcurrentLinkedQueue<>();
     private Queue<String> oxygenQueue = new ConcurrentLinkedQueue<>();
     private Map<String, DataOutputStream> clientOutputStreams = new ConcurrentHashMap<>();
+    private final List<Log> logs = new ArrayList<>();
 
     public Server(int port) {
         pool = Executors.newFixedThreadPool(4); // Adjust based on expected load
@@ -49,7 +50,7 @@ public class Server {
             String requestId = parts[0];
             String action = parts[1];
 
-            logRequest(requestId, action);
+            logEvent(requestId, action);
 
             if ("request".equals(action)) {
                 clientOutputStreams.put(requestId, out); // Map requestId to outputStream
@@ -69,9 +70,9 @@ public class Server {
                 String hydrogen2 = hydrogenQueue.poll();
                 String oxygen = oxygenQueue.poll();
                 
-                logBondingEvent(hydrogen1, "bonded");
-                logBondingEvent(hydrogen2, "bonded");
-                logBondingEvent(oxygen, "bonded");
+                logEvent(hydrogen1, "bonded");
+                logEvent(hydrogen2, "bonded");
+                logEvent(oxygen, "bonded");
 
                 sendBondConfirmation(hydrogen1);
                 sendBondConfirmation(hydrogen2);
@@ -79,12 +80,10 @@ public class Server {
             }
         }
 
-        private void logRequest(String id, String action) {
-            System.out.println("(" + id + ", " + action + ", " + LocalDateTime.now() + ")");
-        }
-
-        private void logBondingEvent(String id, String action) {
-            System.out.println("(" + id + ", " + action + ", " + LocalDateTime.now() + ")");
+        private void logEvent(String id, String action) {
+            Log log = new Log(Integer.parseInt(id.substring(1)), action, LocalDateTime.now(), id.substring(0, 1));
+            System.out.println(log.toStringElement());
+            logs.add(log);
         }
 
         private void sendBondConfirmation(String id) throws IOException {
