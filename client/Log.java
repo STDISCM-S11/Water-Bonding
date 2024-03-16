@@ -8,18 +8,22 @@ public class Log {
     private String formattedTimestamp;
     private String element;
 
+    private LocalDateTime timestamp;
+
     // Define the desired date-time format
     private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public Log(int id, String action, LocalDateTime timestamp){
         this.id = id;
         this.action = action;
+        this.timestamp = timestamp;
         this.formattedTimestamp = timestamp.format(formatter);
     }
 
     public Log(int id, String action, LocalDateTime timestamp, String element){
         this.id = id;
         this.action = action;
+        this.timestamp = timestamp; 
         this.formattedTimestamp = timestamp.format(formatter);
         this.element = element;
     }
@@ -34,6 +38,10 @@ public class Log {
         // Use the formatter to format the timestamp
         // return "(" + id + ", " + element + ", " + action + ", " + formattedTimestamp + ")";
         return "("+ element+ id + ", "+ action+ ", " + formattedTimestamp+ ")";
+    }
+
+    public LocalDateTime getTimeStamp(){
+        return this.timestamp;
     }
 
 }

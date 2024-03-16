@@ -1,7 +1,9 @@
 import java.net.*;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.io.*;
 
 public class Server {
@@ -27,6 +29,7 @@ public class Server {
         }
     }
 
+    
     private class ClientHandler implements Runnable {
         private Socket clientSocket;
 
@@ -94,7 +97,29 @@ public class Server {
         }
     }
 
+    public List<Log> getLogs() {
+        return logs;
+    }
+
+    public int timeCalculation() {
+        if (this.getLogs().isEmpty()) {
+            return 0; // Return 0 if logs list is empty
+        }
+        
+        LocalDateTime firstLogTime = this.getLogs().get(0).getTimeStamp();
+        LocalDateTime lastLogTime = this.getLogs().get(logs.size() - 1).getTimeStamp();
+        
+        Duration duration = Duration.between(firstLogTime, lastLogTime);
+        long seconds = duration.getSeconds(); // Get the difference in seconds
+       
+        System.out.println("First log time: " + firstLogTime);
+        System.out.println("Last log time: " + lastLogTime);
+
+        return (int)seconds;
+    }
+
     public static void main(String[] args) {
-        new Server(4000);
+        Server server = new Server(4000);
+        System.out.println("Time Difference is: " + server.timeCalculation());
     }
 }

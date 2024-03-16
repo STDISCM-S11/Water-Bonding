@@ -2,6 +2,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.Socket;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,6 +84,23 @@ public class OxygenClient {
         return logs;
     }
 
+    public int timeCalculation() {
+        if (this.getLogs().isEmpty()) {
+            return 0; // Return 0 if logs list is empty
+        }
+        
+        LocalDateTime firstLogTime = this.getLogs().get(0).getTimeStamp();
+        LocalDateTime lastLogTime = this.getLogs().get(logs.size() - 1).getTimeStamp();
+        
+        Duration duration = Duration.between(firstLogTime, lastLogTime);
+        long seconds = duration.getSeconds(); // Get the difference in seconds
+       
+        System.out.println("First log time: " + firstLogTime);
+        System.out.println("Last log time: " + lastLogTime);
+
+        return (int)seconds;
+    }
+
     public static void main(String[] args) {
         // Example usage
         OxygenClient client = new OxygenClient("localhost", 4000);
@@ -94,5 +112,7 @@ public class OxygenClient {
         for (Log log : logs) {
             System.out.println(log.toStringElement());
         }
+        System.out.println("Time Difference is: " + client.timeCalculation());
+        
     }
 }
