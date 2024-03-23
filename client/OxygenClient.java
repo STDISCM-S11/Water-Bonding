@@ -6,6 +6,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
@@ -17,10 +18,12 @@ public class OxygenClient {
     private final int serverPort;
     private Socket socket;
     private final List<Log> logs = new ArrayList<>();
+    private final CountDownLatch latch;
 
-    public OxygenClient(String serverAddress, int serverPort) {
+    public OxygenClient(String serverAddress, int serverPort, int M) {
         this.serverAddress = serverAddress;
         this.serverPort = serverPort;
+        this.latch = new CountDownLatch(M); // Initialize CountDownLatch with M responses expected
     }
 
     public void sendAndReceiveRequests(int M) {
@@ -37,28 +40,24 @@ public class OxygenClient {
                         String requestId = "O" + i;
                         Log requestLog = logAction(i, "request");
                         out.writeUTF(requestId + ",request");
-                        this.logs.add(requestLog);
-                        
-                        Thread.sleep(5000);
+                        logs.add(requestLog);
                     }
+                    out.writeUTF("shutdown"); // Send shutdown signal after all requests
                 } catch (Exception e) {
                     logger.log(Level.SEVERE, "Error sending requests to the server", e);
                 }
-
             };
 
             Runnable listenForResponsesTask = () -> {
                 try {
-                    for (int i = 1; i <= M; i++) {
-                        String response;
-                        synchronized (this) {
-                            response = in.readUTF();
-                        }
+                    for (int i = 0; i < M; i++) {
+                        String response = in.readUTF();
+                        latch.countDown(); // Decrement the latch each time a response is received
                         String[] responseParts = response.split(",");
-                        if (responseParts.length >= 2 && responseParts[1].equals("bonded")) {
+                        if ("bonded".equals(responseParts[1])) {
                             int id = Integer.parseInt(responseParts[0].substring(1));
                             Log confirmationLog = logAction(id, "bonded");
-                            this.logs.add(confirmationLog);
+                            logs.add(confirmationLog);
                         }
                     }
                 } catch (IOException e) {
@@ -68,51 +67,40 @@ public class OxygenClient {
 
             executorService.execute(sendRequestsTask);
             executorService.execute(listenForResponsesTask);
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error initializing connection", e);
+
+            executorService.shutdown();
+            latch.await(); // Wait for all responses to be received before proceeding
+
+            printLogsAndTimeDifference(); // Print the logs and the time difference after all operations
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error in communication", e);
         }
     }
 
     private Log logAction(int id, String action) {
         LocalDateTime now = LocalDateTime.now();
-        Log logEntry = new Log(id, action, now, "O");
-        logger.info(logEntry.toStringElement());
-        return logEntry;
+        Log log = new Log(id, action, now, "O");
+        logger.info(log.toString());
+        return log;
     }
 
-    public List<Log> getLogs() {
-        return logs;
+    private void printLogsAndTimeDifference() {
+        System.out.println("Logs:");
+        logs.forEach(log -> System.out.println(log.toStringElement()));
+        System.out.println("Time Difference: " + timeCalculation() + " seconds");
     }
 
     public int timeCalculation() {
-        if (this.getLogs().isEmpty()) {
-            return 0; // Return 0 if logs list is empty
+        if (logs.isEmpty()) {
+            return 0;
         }
-        
-        LocalDateTime firstLogTime = this.getLogs().get(0).getTimeStamp();
-        LocalDateTime lastLogTime = this.getLogs().get(logs.size() - 1).getTimeStamp();
-        
-        Duration duration = Duration.between(firstLogTime, lastLogTime);
-        long seconds = duration.getSeconds(); // Get the difference in seconds
-       
-        System.out.println("First log time: " + firstLogTime);
-        System.out.println("Last log time: " + lastLogTime);
-
-        return (int)seconds;
+        LocalDateTime firstLogTime = logs.get(0).getTimeStamp();
+        LocalDateTime lastLogTime = logs.get(logs.size() - 1).getTimeStamp();
+        return (int) Duration.between(firstLogTime, lastLogTime).getSeconds();
     }
 
     public static void main(String[] args) {
-        // Example usage
-        OxygenClient client = new OxygenClient("localhost", 4000);
-        client.sendAndReceiveRequests(10); // Replace 10 with the desired M value
-        
-        // After sending requests, you can access the logs
-        List<Log> logs = client.getLogs();
-        System.out.println("Logs:");
-        for (Log log : logs) {
-            System.out.println(log.toStringElement());
-        }
-        System.out.println("Time Difference is: " + client.timeCalculation());
-        
+        OxygenClient client = new OxygenClient("localhost", 4000, 10);
+        client.sendAndReceiveRequests(10);
     }
 }

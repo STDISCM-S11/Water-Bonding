@@ -1,125 +1,124 @@
-import java.net.*;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.io.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Server {
-    private ServerSocket server = null;
+    private static final Logger logger = Logger.getLogger(Server.class.getName());
+    private ServerSocket serverSocket = null;
     private ExecutorService pool = null;
-    private Queue<String> hydrogenQueue = new ConcurrentLinkedQueue<>();
-    private Queue<String> oxygenQueue = new ConcurrentLinkedQueue<>();
-    private Map<String, DataOutputStream> clientOutputStreams = new ConcurrentHashMap<>();
-    private final List<Log> logs = new ArrayList<>();
+    private final List<Log> logs = Collections.synchronizedList(new ArrayList<>());
+    private final AtomicInteger activeClientCount = new AtomicInteger(0);
+    private final CountDownLatch shutdownLatch = new CountDownLatch(2); // Expecting shutdown signals from 2 clients
 
     public Server(int port) {
-        pool = Executors.newFixedThreadPool(4); // Adjust based on expected load
         try {
-            server = new ServerSocket(port);
+            serverSocket = new ServerSocket(port);
+            pool = Executors.newFixedThreadPool(4); // Adjust based on expected load
             System.out.println("Server started on port: " + port);
-
-            while (true) {
-                Socket clientSocket = server.accept();
-                pool.execute(new ClientHandler(clientSocket));
+            waitForClients();
+            shutdownLatch.await(); // Wait for both clients to send shutdown signals
+            printLogsAndTimeDifference();
+        } catch (IOException | InterruptedException e) {
+            logger.log(Level.SEVERE, "Server exception: " + e.getMessage(), e);
+            Thread.currentThread().interrupt();
+        } finally {
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                try {
+                    serverSocket.close();
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, "Error closing server socket", e);
+                }
             }
-        } catch (IOException e) {
-            System.err.println("Server exception: " + e.getMessage());
         }
     }
 
-    
+    private void waitForClients() {
+        while (true) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                activeClientCount.incrementAndGet();
+                pool.execute(new ClientHandler(clientSocket));
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Accept failed on server socket", e);
+                break;
+            }
+        }
+    }
+
     private class ClientHandler implements Runnable {
-        private Socket clientSocket;
+        private final Socket clientSocket;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
         }
 
+        @Override
         public void run() {
-            try (DataInputStream in = new DataInputStream(new BufferedInputStream(clientSocket.getInputStream()))) {
+            try (DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+                 DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
                 String line;
-                while (!(line = in.readUTF()).equals("Over")) {
-                    processRequest(line, new DataOutputStream(clientSocket.getOutputStream()));
+                while ((line = in.readUTF()) != null) {
+                    if ("shutdown".equals(line)) {
+                        shutdownLatch.countDown();
+                        break;
+                    }
+                    processRequest(line, out);
                 }
             } catch (IOException e) {
-                System.err.println("ClientHandler exception: " + e.getMessage());
+                logger.log(Level.SEVERE, "ClientHandler exception: " + e.getMessage(), e);
+            } finally {
+                try {
+                    clientSocket.close();
+                } catch (IOException e) {
+                    logger.log(Level.SEVERE, "Error closing client socket", e);
+                }
             }
         }
 
-        private void processRequest(String request, DataOutputStream out) throws IOException {
+        private void processRequest(String request, DataOutputStream out) {
+            // Example request processing
             String[] parts = request.split(",");
             String requestId = parts[0];
-            String action = parts[1];
-
-            logEvent(requestId, action);
-
-            if ("request".equals(action)) {
-                clientOutputStreams.put(requestId, out); // Map requestId to outputStream
-                if (requestId.startsWith("H")) {
-                    hydrogenQueue.add(requestId);
-                } else if (requestId.startsWith("O")) {
-                    oxygenQueue.add(requestId);
-                }
-
-                checkAndFormBond();
-            }
-        }
-
-        private synchronized void checkAndFormBond() throws IOException {
-            if (hydrogenQueue.size() >= 2 && oxygenQueue.size() >= 1) {
-                String hydrogen1 = hydrogenQueue.poll();
-                String hydrogen2 = hydrogenQueue.poll();
-                String oxygen = oxygenQueue.poll();
-                
-                logEvent(hydrogen1, "bonded");
-                logEvent(hydrogen2, "bonded");
-                logEvent(oxygen, "bonded");
-
-                sendBondConfirmation(hydrogen1);
-                sendBondConfirmation(hydrogen2);
-                sendBondConfirmation(oxygen);
-            }
-        }
-
-        private void logEvent(String id, String action) {
-            Log log = new Log(Integer.parseInt(id.substring(1)), action, LocalDateTime.now(), id.substring(0, 1));
-            System.out.println(log.toStringElement());
+            // Process request...
+            Log log = new Log(Integer.parseInt(requestId.substring(1)), "request", LocalDateTime.now(), requestId.substring(0, 1));
             logs.add(log);
-        }
-
-        private void sendBondConfirmation(String id) throws IOException {
-            DataOutputStream out = clientOutputStreams.get(id);
-            if (out != null) {
-                out.writeUTF(id + ",bonded");
+            // Example response
+            try {
+                out.writeUTF(requestId + ",processed");
+            } catch (IOException e) {
+                logger.log(Level.SEVERE, "Error sending response to client", e);
             }
         }
     }
 
-    public List<Log> getLogs() {
-        return logs;
-    }
-
-    public int timeCalculation() {
-        if (this.getLogs().isEmpty()) {
-            return 0; // Return 0 if logs list is empty
+    private void printLogsAndTimeDifference() {
+        if (logs.isEmpty()) {
+            System.out.println("No logs to display.");
+            return;
         }
         
-        LocalDateTime firstLogTime = this.getLogs().get(0).getTimeStamp();
-        LocalDateTime lastLogTime = this.getLogs().get(logs.size() - 1).getTimeStamp();
+        LocalDateTime firstLogTime = logs.get(0).getTimeStamp();
+        LocalDateTime lastLogTime = logs.get(logs.size() - 1).getTimeStamp();
+        long seconds = Duration.between(firstLogTime, lastLogTime).getSeconds();
         
-        Duration duration = Duration.between(firstLogTime, lastLogTime);
-        long seconds = duration.getSeconds(); // Get the difference in seconds
-       
-        System.out.println("First log time: " + firstLogTime);
-        System.out.println("Last log time: " + lastLogTime);
-
-        return (int)seconds;
+        System.out.println("Logs:");
+        synchronized (logs) {
+            for (Log log : logs) {
+                System.out.println(log.toStringElement());
+            }
+        }
+        
+        System.out.println("Time Difference: " + seconds + " seconds");
     }
 
     public static void main(String[] args) {
-        Server server = new Server(4000);
-        System.out.println("Time Difference is: " + server.timeCalculation());
+        new Server(4000);
     }
 }
