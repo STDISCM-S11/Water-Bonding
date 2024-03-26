@@ -5,6 +5,7 @@ import java.net.Socket;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
@@ -16,6 +17,7 @@ public class OxygenClient {
     private final int serverPort;
     private Socket socket;
     private final List<Log> logs = new ArrayList<>();
+    private static int M;
 
     public OxygenClient(String serverAddress, int serverPort) {
         this.serverAddress = serverAddress;
@@ -30,6 +32,11 @@ public class OxygenClient {
             DataOutputStream out = new DataOutputStream(socket.getOutputStream());
             DataInputStream in = new DataInputStream(socket.getInputStream());
 
+            String nRequestId = "Om";
+            Log nRequestLog = logAction(-1, "request");
+            out.writeUTF(nRequestId + ", " + M);
+            this.logs.add(nRequestLog);
+
             Runnable sendRequestsTask = () -> {
                 try {
                     for (int i = 1; i <= M; i++) {
@@ -37,8 +44,8 @@ public class OxygenClient {
                         Log requestLog = logAction(i, "request");
                         out.writeUTF(requestId + ",request");
                         this.logs.add(requestLog);
-                        
-                        Thread.sleep(5000);
+
+                        // Thread.sleep(5000);
                     }
                 } catch (Exception e) {
                     logger.log(Level.SEVERE, "Error sending requests to the server", e);
@@ -48,7 +55,7 @@ public class OxygenClient {
 
             Runnable listenForResponsesTask = () -> {
                 try {
-                    for (int i = 1; i <= M; i++) {
+                    for (int i = 1; i <= M + 1; i++) {
                         String response;
                         synchronized (this) {
                             response = in.readUTF();
@@ -58,6 +65,8 @@ public class OxygenClient {
                             int id = Integer.parseInt(responseParts[0].substring(1));
                             Log confirmationLog = logAction(id, "bonded");
                             this.logs.add(confirmationLog);
+                        } else if (responseParts.length >= 2 && responseParts[1].contains("duration")) {
+                            System.out.println(responseParts[1]);
                         }
                     }
                 } catch (IOException e) {
@@ -86,8 +95,13 @@ public class OxygenClient {
     public static void main(String[] args) {
         // Example usage
         OxygenClient client = new OxygenClient("localhost", 4000);
-        client.sendAndReceiveRequests(10); // Replace 10 with the desired M value
-        
+        Scanner sc = new Scanner(System.in);
+        System.out.print("Enter number of oxygen: ");
+        M = sc.nextInt();
+        sc.close();
+
+        client.sendAndReceiveRequests(M); // Replace 10 with the desired M value
+
         // After sending requests, you can access the logs
         List<Log> logs = client.getLogs();
         System.out.println("Logs:");

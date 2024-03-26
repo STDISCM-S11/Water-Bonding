@@ -1,4 +1,5 @@
 import java.net.*;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
@@ -12,8 +13,14 @@ public class Server {
     private Map<String, DataOutputStream> clientOutputStreams = new ConcurrentHashMap<>();
     private final List<Log> logs = new ArrayList<>();
 
+    private int oxygenRequests;
+    private int hydrogenRequests;
+
+    private int numOxygenBonded;
+    private int numHydrogenBonded;
+
     public Server(int port) {
-        pool = Executors.newFixedThreadPool(4); // Adjust based on expected load
+        pool = Executors.newFixedThreadPool(100); // Adjust based on expected load
         try {
             server = new ServerSocket(port);
             System.out.println("Server started on port: " + port);
@@ -24,6 +31,10 @@ public class Server {
             }
         } catch (IOException e) {
             System.err.println("Server exception: " + e.getMessage());
+        } finally {
+            if (pool != null) {
+                pool.shutdown(); // Shutdown the ExecutorService
+            }
         }
     }
 
@@ -50,6 +61,16 @@ public class Server {
             String requestId = parts[0];
             String action = parts[1];
 
+            if (requestId.equals("Hn")) {
+                hydrogenRequests = Integer.parseInt(action.strip());
+                return;
+            }
+
+            if (requestId.equals("Om")) {
+                oxygenRequests = Integer.parseInt(action.strip());
+                return;
+            }
+
             logEvent(requestId, action);
 
             if ("request".equals(action)) {
@@ -64,12 +85,40 @@ public class Server {
             }
         }
 
+        private void checkIfDone(String id1, String id2) {
+            if ((numHydrogenBonded > 0 && numOxygenBonded > 0) && (numOxygenBonded == oxygenRequests
+                    && numHydrogenBonded == hydrogenRequests)) {
+                // Your existing logic for checking time and sending to clients
+                Log first = logs.stream()
+                        .min((log1, log2) -> LocalDateTime.parse(log1.getFormattedTimestamp(), Log.formatter)
+                                .compareTo(LocalDateTime.parse(log2.getFormattedTimestamp(), Log.formatter)))
+                        .orElse(null);
+                Log last = logs.stream()
+                        .max((log1, log2) -> LocalDateTime.parse(log1.getFormattedTimestamp(), Log.formatter)
+                                .compareTo(LocalDateTime.parse(log2.getFormattedTimestamp(), Log.formatter)))
+                        .orElse(null);
+
+                try {
+                    LocalDateTime firstTimestamp = LocalDateTime.parse(first.getFormattedTimestamp(), Log.formatter);
+                    LocalDateTime lastTimestamp = LocalDateTime.parse(last.getFormattedTimestamp(), Log.formatter);
+                    long duration = Duration.between(firstTimestamp, lastTimestamp).toMillis();
+                    System.out.println("duration: " + duration + "ms");
+                    sendDuration(id1, duration);
+                    sendDuration(id2, duration);
+                    // Send to clients
+                    // Add your logic to send to clients here
+                } catch (NullPointerException err) {
+                    System.out.println("not done");
+                }
+            }
+        }
+
         private synchronized void checkAndFormBond() throws IOException {
             if (hydrogenQueue.size() >= 2 && oxygenQueue.size() >= 1) {
                 String hydrogen1 = hydrogenQueue.poll();
                 String hydrogen2 = hydrogenQueue.poll();
                 String oxygen = oxygenQueue.poll();
-                
+
                 logEvent(hydrogen1, "bonded");
                 logEvent(hydrogen2, "bonded");
                 logEvent(oxygen, "bonded");
@@ -77,6 +126,10 @@ public class Server {
                 sendBondConfirmation(hydrogen1);
                 sendBondConfirmation(hydrogen2);
                 sendBondConfirmation(oxygen);
+                numOxygenBonded++;
+                numHydrogenBonded += 2;
+                checkIfDone(hydrogen1, oxygen); // you can use any id here since it just needs to know wheter it is an
+                                                // oxygen or hydrogen client
             }
         }
 
@@ -90,6 +143,18 @@ public class Server {
             DataOutputStream out = clientOutputStreams.get(id);
             if (out != null) {
                 out.writeUTF(id + ",bonded");
+            }
+        }
+
+        private void sendDuration(String id, long duration) {
+            try {
+
+                DataOutputStream out = clientOutputStreams.get(id);
+                if (out != null) {
+                    out.writeUTF(id + ",duration: " + duration + "ms");
+                }
+            } catch (IOException e) {
+                System.out.println(e);
             }
         }
     }
