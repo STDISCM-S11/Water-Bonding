@@ -106,7 +106,7 @@ public class HydrogenClient {
 
     public static void main(String[] args) {
         // Example usage
-        HydrogenClient client = new HydrogenClient("127.0.0.1", 4000);
+        HydrogenClient client = new HydrogenClient("25.17.69.8", 4000);
         Scanner sc = new Scanner(System.in);
         System.out.print("Enter number of hydrogen: ");
         N = sc.nextInt();

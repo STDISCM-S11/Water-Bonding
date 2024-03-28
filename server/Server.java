@@ -13,6 +13,8 @@ public class Server {
     private Map<String, DataOutputStream> clientOutputStreams = new ConcurrentHashMap<>();
     private final List<Log> logs = new ArrayList<>();
 
+    private final Semaphore mutex = new Semaphore(1);
+
     private int oxygenRequests;
     private int hydrogenRequests;
 
@@ -20,7 +22,7 @@ public class Server {
     private int numHydrogenBonded;
 
     public Server(int port) {
-        pool = Executors.newFixedThreadPool(100); // Adjust based on expected load
+        pool = Executors.newCachedThreadPool(); // Adjust based on expected load
         try {
             server = new ServerSocket(port);
             System.out.println("Server started on port: " + port);
@@ -114,29 +116,55 @@ public class Server {
         }
 
         private synchronized void checkAndFormBond() throws IOException {
-            if (hydrogenQueue.size() >= 2 && oxygenQueue.size() >= 1) {
-                String hydrogen1 = hydrogenQueue.poll();
-                String hydrogen2 = hydrogenQueue.poll();
-                String oxygen = oxygenQueue.poll();
 
-                logEvent(hydrogen1, "bonded");
-                logEvent(hydrogen2, "bonded");
-                logEvent(oxygen, "bonded");
+            try {
+                mutex.acquire();
 
-                sendBondConfirmation(hydrogen1);
-                sendBondConfirmation(hydrogen2);
-                sendBondConfirmation(oxygen);
-                numOxygenBonded++;
-                numHydrogenBonded += 2;
-                checkIfDone(hydrogen1, oxygen); // you can use any id here since it just needs to know wheter it is an
-                                                // oxygen or hydrogen client
+                if (hydrogenQueue.size() >= 2 && oxygenQueue.size() >= 1) {
+                    String hydrogen1 = hydrogenQueue.poll();
+                    String hydrogen2 = hydrogenQueue.poll();
+                    String oxygen = oxygenQueue.poll();
+
+                    // if (hydrogen1 == null || hydrogen2 == null || oxygen == null) {
+                    // return;
+                    // }
+
+                    logEvent(hydrogen1, "bonded");
+                    logEvent(hydrogen2, "bonded");
+                    logEvent(oxygen, "bonded");
+
+                    sendBondConfirmation(hydrogen1);
+                    sendBondConfirmation(hydrogen2);
+                    sendBondConfirmation(oxygen);
+                    numOxygenBonded++;
+                    numHydrogenBonded += 2;
+                    checkIfDone(hydrogen1, oxygen); // you can use any id here since it just needs to know wheter it is
+                                                    // an
+                                                    // oxygen or hydrogen client
+                    mutex.release();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Set the interrupt flag
+                System.err.println("Semaphore acquisition interrupted");
+            } catch (IOException e) {
+                System.err.println("IO Exception in checkAndFormBond");
+            } finally {
+                // Ensure the semaphore is released if an exception occurs
+                if (mutex.availablePermits() == 0) {
+                    mutex.release();
+                }
             }
         }
 
         private void logEvent(String id, String action) {
-            Log log = new Log(Integer.parseInt(id.substring(1)), action, LocalDateTime.now(), id.substring(0, 1));
-            System.out.println(log.toStringElement());
-            logs.add(log);
+            try {
+                Log log = new Log(Integer.parseInt(id.substring(1)), action, LocalDateTime.now(), id.substring(0, 1));
+                System.out.println(log.toStringElement());
+                logs.add(log);
+            } catch (NullPointerException e) {
+                System.out.println("id: " + id);
+                System.out.println("action: " + action);
+            }
         }
 
         private void sendBondConfirmation(String id) throws IOException {
