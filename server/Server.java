@@ -22,7 +22,7 @@ public class Server {
     private int numHydrogenBonded;
 
     public Server(int port) {
-        pool = Executors.newCachedThreadPool(); // Adjust based on expected load
+        pool = Executors.newCachedThreadPool(); 
         try {
             server = new ServerSocket(port);
             System.out.println("Server started on port: " + port);
@@ -35,7 +35,7 @@ public class Server {
             System.err.println("Server exception: " + e.getMessage());
         } finally {
             if (pool != null) {
-                pool.shutdown(); // Shutdown the ExecutorService
+                pool.shutdown(); 
             }
         }
     }
@@ -90,7 +90,6 @@ public class Server {
         private void checkIfDone(String id1, String id2) {
             if ((numHydrogenBonded > 0 && numOxygenBonded > 0) && (numOxygenBonded == oxygenRequests
                     && numHydrogenBonded == hydrogenRequests)) {
-                // Your existing logic for checking time and sending to clients
                 Log first = logs.stream()
                         .min((log1, log2) -> LocalDateTime.parse(log1.getFormattedTimestamp(), Log.formatter)
                                 .compareTo(LocalDateTime.parse(log2.getFormattedTimestamp(), Log.formatter)))
@@ -107,8 +106,6 @@ public class Server {
                     System.out.println("duration: " + duration + "ms");
                     sendDuration(id1, duration);
                     sendDuration(id2, duration);
-                    // Send to clients
-                    // Add your logic to send to clients here
                 } catch (NullPointerException err) {
                     System.out.println("not done");
                 }
@@ -138,9 +135,8 @@ public class Server {
                     sendBondConfirmation(oxygen);
                     numOxygenBonded++;
                     numHydrogenBonded += 2;
-                    checkIfDone(hydrogen1, oxygen); // you can use any id here since it just needs to know wheter it is
-                                                    // an
-                                                    // oxygen or hydrogen client
+                    checkIfDone(hydrogen1, oxygen); 
+                                                    
                     mutex.release();
                 }
             } catch (InterruptedException e) {
